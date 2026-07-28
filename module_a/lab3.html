@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab 3: Semantic Routing | Module A: LLM Proxy & Cost Control</title>
+    <style>
+        :root {
+            --mulesoft-blue: #00a2df;
+            --mulesoft-dark: #1a1a2e;
+            --sidebar-bg: #f5f7fa;
+            --border-color: #e1e5eb;
+            --text-primary: #1a1a2e;
+            --text-secondary: #5c6370;
+            --code-bg: #f0f2f5;
+            --info-bg: #e7f5fd;
+            --info-border: #00a2df;
+            --warning-bg: #fff8e6;
+            --warning-border: #f5a623;
+            --success-bg: #e6f9ed;
+            --success-border: #00b341;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            color: var(--text-primary);
+            background: #fff;
+        }
+
+        .header {
+            background: var(--mulesoft-dark);
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-logo { font-weight: 700; font-size: 1.25rem; color: white; text-decoration: none; }
+        .header-nav { display: flex; gap: 1.5rem; }
+        .header-nav a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .header-nav a:hover { color: white; }
+        .header-nav a.active { color: var(--mulesoft-blue); }
+
+        .layout { display: flex; min-height: calc(100vh - 60px); }
+
+        .sidebar {
+            width: 280px;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            padding: 1.5rem 0;
+            position: sticky;
+            top: 60px;
+            height: calc(100vh - 60px);
+            overflow-y: auto;
+        }
+
+        .sidebar-section { padding: 0 1.5rem; margin-bottom: 1.5rem; }
+        .sidebar-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 0.75rem; font-weight: 600; }
+        .sidebar-nav { list-style: none; }
+        .sidebar-nav li { margin-bottom: 0.25rem; }
+        .sidebar-nav a { display: block; padding: 0.5rem 0.75rem; color: var(--text-primary); text-decoration: none; border-radius: 4px; font-size: 0.9rem; }
+        .sidebar-nav a:hover { background: rgba(0,0,0,0.05); }
+        .sidebar-nav a.active { background: var(--mulesoft-blue); color: white; }
+
+        .main { flex: 1; max-width: 900px; padding: 2rem 3rem; }
+
+        .breadcrumb { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem; }
+        .breadcrumb a { color: var(--mulesoft-blue); text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+
+        h1 { font-size: 2rem; margin-bottom: 0.5rem; color: var(--text-primary); }
+        .subtitle { font-size: 1.1rem; color: var(--text-secondary); margin-bottom: 2rem; }
+
+        .meta { display: flex; gap: 2rem; padding: 1rem 0; border-bottom: 1px solid var(--border-color); margin-bottom: 2rem; font-size: 0.9rem; }
+        .meta-item { display: flex; align-items: center; gap: 0.5rem; }
+        .meta-label { color: var(--text-secondary); }
+        .meta-value { font-weight: 500; }
+
+        h2 { font-size: 1.5rem; margin-top: 2.5rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-color); }
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; margin-bottom: 0.75rem; }
+        p { margin-bottom: 1rem; }
+        ol, ul { margin-bottom: 1rem; padding-left: 1.5rem; }
+        li { margin-bottom: 0.5rem; }
+
+        .info-box { padding: 1rem 1.25rem; border-radius: 6px; margin: 1.5rem 0; border-left: 4px solid; }
+        .info-box.info { background: var(--info-bg); border-color: var(--info-border); }
+        .info-box.warning { background: var(--warning-bg); border-color: var(--warning-border); }
+        .info-box.success { background: var(--success-bg); border-color: var(--success-border); }
+        .info-box-title { font-weight: 600; margin-bottom: 0.5rem; }
+
+        code { background: var(--code-bg); padding: 0.15rem 0.4rem; border-radius: 3px; font-family: 'SF Mono', Monaco, 'Courier New', monospace; font-size: 0.875em; }
+        pre { background: var(--mulesoft-dark); color: #e0e0e0; padding: 1rem 1.25rem; border-radius: 6px; overflow-x: auto; margin: 1rem 0; }
+        pre code { background: none; padding: 0; color: inherit; }
+
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.75rem 1rem; text-align: left; border: 1px solid var(--border-color); }
+        th { background: var(--sidebar-bg); font-weight: 600; }
+
+        .screenshot { margin: 1.5rem 0; }
+        .screenshot-toggle { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; color: var(--mulesoft-blue); font-weight: 500; padding: 0.5rem 0; }
+        .screenshot-toggle:hover { text-decoration: underline; }
+        .screenshot-content { display: none; margin-top: 0.5rem; }
+        .screenshot-content.expanded { display: block; }
+        .screenshot-content img { max-width: 100%; border: 1px solid var(--border-color); border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+
+        .nav-footer { display: flex; justify-content: space-between; margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); }
+        .nav-link { display: flex; align-items: center; gap: 0.5rem; color: var(--mulesoft-blue); text-decoration: none; font-weight: 500; }
+        .nav-link:hover { text-decoration: underline; }
+
+        .toc { width: 220px; padding: 1.5rem; position: sticky; top: 60px; height: calc(100vh - 60px); overflow-y: auto; }
+        .toc-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 0.75rem; font-weight: 600; }
+        .toc-nav { list-style: none; }
+        .toc-nav li { margin-bottom: 0.5rem; }
+        .toc-nav a { font-size: 0.85rem; color: var(--text-secondary); text-decoration: none; }
+        .toc-nav a:hover { color: var(--mulesoft-blue); }
+
+        .diagram { background: var(--code-bg); padding: 1rem; border-radius: 6px; font-family: 'SF Mono', Monaco, 'Courier New', monospace; font-size: 0.85rem; overflow-x: auto; margin: 1rem 0; white-space: pre; }
+
+        @media (max-width: 1200px) { .toc { display: none; } }
+        @media (max-width: 900px) { .sidebar { display: none; } .main { padding: 1.5rem; } }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <a href="index.html" class="header-logo">MuleSoft Workshop</a>
+        <nav class="header-nav">
+            <a href="index.html">Home</a>
+            <a href="lab1.html" class="active">Module A: LLM Proxy</a>
+            <a href="../module_b/lab1.html">Module B: Guided Determinism</a>
+        </nav>
+    </header>
+
+    <div class="layout">
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <div class="sidebar-title">Module A: LLM Proxy & Cost Control</div>
+                <ul class="sidebar-nav">
+                    <li><a href="lab1.html">Lab 1: Create LLM Proxy</a></li>
+                    <li><a href="lab2.html">Lab 2: Model-Based Routing</a></li>
+                    <li><a href="lab3.html" class="active">Lab 3: Semantic Routing</a></li>
+                    <li><a href="lab4.html">Lab 4: Token Budgets</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <main class="main">
+            <nav class="breadcrumb">
+                <a href="index.html">Workshop Home</a> /
+                <a href="index.html">Module A</a> /
+                Lab 3
+            </nav>
+
+            <h1>Lab 3: Semantic Routing Strategy</h1>
+            <p class="subtitle">Let the proxy automatically classify prompts and route to the right model</p>
+
+            <div class="meta">
+                <div class="meta-item">
+                    <span class="meta-label">Duration:</span>
+                    <span class="meta-value">~20 minutes</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Pillar:</span>
+                    <span class="meta-value">Govern (extended)</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Prerequisite:</span>
+                    <span class="meta-value">Lab 2 complete</span>
+                </div>
+            </div>
+
+            <section id="overview">
+                <h2>Overview</h2>
+                <p>In Lab 2, developers chose the model and the proxy routed to the right provider. Now we remove that decision entirely — <strong>the proxy classifies the prompt and routes automatically</strong>.</p>
+
+                <p><strong>Business scenario:</strong> Your platform team doesn't want developers thinking about which model to use. "Write code" should route to Claude (expensive, powerful). "Summarize this" should route to Gemini Flash (cheap, fast). The proxy makes the call — developers just send prompts.</p>
+
+                <div class="info-box info">
+                    <div class="info-box-title">Why This Matters</div>
+                    <p>Jeff Arbor's team went from $500K to $3M in token spend. Some of that is legitimate code-generation work. Some of it is summaries and triage that could run on a model 10x cheaper. Semantic routing catches the latter automatically.</p>
+                </div>
+            </section>
+
+            <section id="how-it-works">
+                <h2>How Semantic Routing Works</h2>
+                <div class="diagram">Developer Request                    LLM Proxy                              Provider
+─────────────────                    ─────────                              ────────
+
+"Write a function that..."   ──►   Embedding classifies as "code"    ──►  Bedrock Claude ($$$)
+                                          │
+"Summarize this PR..."       ──►   Embedding classifies as "docs"    ──►  Gemini Flash ($)</div>
+                <p>The developer never specifies a model. The proxy:</p>
+                <ol>
+                    <li>Sends the prompt to an embedding model</li>
+                    <li>Compares the embedding to trained topics</li>
+                    <li>Routes to the matching backend</li>
+                </ol>
+            </section>
+
+            <section id="step-1">
+                <h2>Step 1: Create the Semantic Service</h2>
+                <ol>
+                    <li>Log into Anypoint Platform</li>
+                    <li>Navigate to <strong>Agent Fabric</strong> → <strong>LLM Proxies</strong> → <strong>Semantic Services</strong> (left nav)</li>
+                    <li>Click <strong>+ New semantic service</strong></li>
+                </ol>
+
+                <div class="screenshot">
+                    <div class="screenshot-toggle" onclick="toggleScreenshot(this)">
+                        ▶ Screenshot: LLM Proxies List
+                    </div>
+                    <div class="screenshot-content">
+                        <img src="_images/01_llm_proxies_list.png" alt="LLM Proxies list">
+                    </div>
+                </div>
+            </section>
+
+            <section id="step-2">
+                <h2>Step 2: Configure the Semantic Service</h2>
+                <ol>
+                    <li>Select <strong>Basic scale</strong> (supports up to 6 topics, 10 utterances per topic)</li>
+                    <li>Configure the embedding connection:</li>
+                </ol>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Environment</td>
+                            <td><code>Sandbox</code></td>
+                        </tr>
+                        <tr>
+                            <td>Embedding service provider</td>
+                            <td><code>Hugging Face</code></td>
+                        </tr>
+                        <tr>
+                            <td>Service label</td>
+                            <td><code>xometry-task-router</code></td>
+                        </tr>
+                        <tr>
+                            <td>URL</td>
+                            <td><code>https://router.huggingface.co/hf-inference/models/sentence-transformers/all-MiniLM-L6-v2/pipeline/feature-extraction</code></td>
+                        </tr>
+                        <tr>
+                            <td>Model</td>
+                            <td><code>all-MiniLM-L6-v2</code></td>
+                        </tr>
+                        <tr>
+                            <td>Auth key</td>
+                            <td>(provided by instructor)</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="screenshot">
+                    <div class="screenshot-toggle" onclick="toggleScreenshot(this)">
+                        ▶ Screenshot: Semantic Service Configuration
+                    </div>
+                    <div class="screenshot-content">
+                        <img src="_images/05_semantic_service_huggingface_filled.png" alt="Semantic service configuration">
+                    </div>
+                </div>
+
+                <ol start="3">
+                    <li>Click <strong>Save changes</strong> to create the service</li>
+                </ol>
+
+                <div class="screenshot">
+                    <div class="screenshot-toggle" onclick="toggleScreenshot(this)">
+                        ▶ Screenshot: Semantic Service Created
+                    </div>
+                    <div class="screenshot-content">
+                        <img src="_images/06_semantic_service_created.png" alt="Semantic service created">
+                    </div>
+                </div>
+            </section>
+
+            <section id="step-3">
+                <h2>Step 3: Switch LLM Proxy to Semantic Routing</h2>
+                <ol>
+                    <li>Navigate to <strong>LLM Proxies</strong> → <code>xometry-sdlc-proxy</code></li>
+                    <li>Click <strong>Edit Configuration</strong></li>
+                    <li>Under <strong>Routing strategy</strong>, change from <code>Model-based</code> to <code>Semantic</code></li>
+                </ol>
+
+                <div class="screenshot">
+                    <div class="screenshot-toggle" onclick="toggleScreenshot(this)">
+                        ▶ Screenshot: Routing Strategy Dropdown
+                    </div>
+                    <div class="screenshot-content">
+                        <img src="_images/03_routing_strategy_dropdown.png" alt="Routing strategy dropdown">
+                    </div>
+                </div>
+
+                <ol start="4">
+                    <li>Under <strong>Semantic service routing setup</strong>, select <code>xometry-task-router</code></li>
+                </ol>
+
+                <div class="screenshot">
+                    <div class="screenshot-toggle" onclick="toggleScreenshot(this)">
+                        ▶ Screenshot: Select Semantic Service
+                    </div>
+                    <div class="screenshot-content">
+                        <img src="_images/04_semantic_service_dropdown.png" alt="Select semantic service">
+                    </div>
+                </div>
+
+                <p>You'll now see the routes with "No topics yet" — topics are created per-route.</p>
+
+                <div class="screenshot">
+                    <div class="screenshot-toggle" onclick="toggleScreenshot(this)">
+                        ▶ Screenshot: No Topics Yet
+                    </div>
+                    <div class="screenshot-content">
+                        <img src="_images/07_semantic_selected_no_topics.png" alt="No topics yet">
+                    </div>
+                </div>
+            </section>
+
+            <section id="step-4">
+                <h2>Step 4: Create Topic 1 — Code Generation</h2>
+                <p>This topic catches prompts that should route to the expensive, powerful model.</p>
+                <ol>
+                    <li>Expand the <strong>bedrock-claude</strong> route</li>
+                    <li>Click <strong>+ Create new topic</strong></li>
+                    <li>Configure:</li>
+                </ol>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Prompt topic name</td>
+                            <td><code>code-generation</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <ol start="4">
+                    <li>Add sample utterances (these train the classifier):</li>
+                </ol>
+
+                <pre><code>Write a Python function that validates input parameters
+Implement a retry mechanism with exponential backoff
+Create a unit test for the payment processing service
+Refactor this class to use the strategy pattern
+Debug this null pointer exception in the API handler
+Generate a GitHub Actions workflow for CI/CD
+Write a SQL migration to add a new column
+Implement the A2A protocol handler in TypeScript
+Fix this race condition in the async handler
+Write a DataWeave transformation for this JSON</code></pre>
+
+                <div class="screenshot">
+                    <div class="screenshot-toggle" onclick="toggleScreenshot(this)">
+                        ▶ Screenshot: Create Topic Dialog
+                    </div>
+                    <div class="screenshot-content">
+                        <img src="_images/08_create_topic_dialog_empty.png" alt="Create topic dialog">
+                    </div>
+                </div>
+
+                <div class="screenshot">
+                    <div class="screenshot-toggle" onclick="toggleScreenshot(this)">
+                        ▶ Screenshot: Code Generation Topic Filled
+                    </div>
+                    <div class="screenshot-content">
+                        <img src="_images/09_create_topic_code_generation_filled.png" alt="Code generation topic filled">
+                    </div>
+                </div>
+
+                <ol start="5">
+                    <li>Click <strong>Save</strong></li>
+                </ol>
+            </section>
+
+            <section id="step-5">
+                <h2>Step 5: Create Topic 2 — Documentation & Triage</h2>
+                <p>This topic catches prompts that should route to the cheap, fast model.</p>
+                <ol>
+                    <li>Expand the <strong>gemini-flash</strong> route</li>
+                    <li>Click <strong>+ Create new topic</strong></li>
+                    <li>Configure:</li>
+                </ol>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Prompt topic name</td>
+                            <td><code>documentation-triage</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <ol start="4">
+                    <li>Add sample utterances:</li>
+                </ol>
+
+                <pre><code>Summarize the changes in this pull request
+Write a README for this microservice
+Classify this bug report by severity
+Generate release notes from these commit messages
+Explain what this code does in plain English
+Triage this incoming support ticket
+Draft a response to this code review comment
+Create a JIRA ticket description from this Slack thread
+Summarize the key changes in sprint 47
+Write a one-paragraph description of this feature</code></pre>
+
+                <ol start="5">
+                    <li>Click <strong>Save</strong></li>
+                </ol>
+            </section>
+
+            <section id="step-6">
+                <h2>Step 6: Configure Fallback Threshold</h2>
+                <div class="info-box warning">
+                    <div class="info-box-title">Important: Hugging Face Threshold</div>
+                    <p>The Hugging Face <code>all-MiniLM-L6-v2</code> model produces lower confidence scores than OpenAI's embeddings. You need to lower the fallback threshold for reliable classification.</p>
+                </div>
+
+                <ol>
+                    <li>Scroll to the <strong>Fallback</strong> section</li>
+                    <li>Change the threshold slider from <code>0.5</code> to <code>0.1</code></li>
+                    <li>Set Fallback Route to <code>gemini-flash: Gemini</code></li>
+                    <li>Set Fallback Model to <code>Gemini 3 Flash Preview</code></li>
+                </ol>
+
+                <p><strong>Why 0.1?</strong> The MiniLM model is optimized for speed and size, not absolute confidence scores. A 0.1 threshold still provides good discrimination between topics while avoiding unnecessary fallbacks.</p>
+
+                <ol start="5">
+                    <li>Click <strong>Save Changes</strong> and wait for redeployment</li>
+                </ol>
+            </section>
+
+            <section id="step-7">
+                <h2>Step 7: Test Semantic Routing</h2>
+                <p>We'll test using curl commands. The Playground may show CORS errors in some environments — curl bypasses this and is how developers would actually integrate.</p>
+
+                <div class="info-box info">
+                    <div class="info-box-title">No Terminal Access?</div>
+                    <p>Use <a href="https://hoppscotch.io" target="_blank">Hoppscotch</a> — paste the curl command and it converts/runs it for you. Or install the <a href="https://hoppscotch.io/download" target="_blank">Hoppscotch browser extension</a> to bypass CORS.</p>
+                </div>
+
+                <h3>Test A: Code Generation Prompt</h3>
+                <p>Run this command in your terminal:</p>
+
+                <pre><code>curl -X POST "https://agent-network-ingress-gw-2l91ch.4o8hak.usa-e2.cloudhub.io/xometry-sdlc/responses" \
+  -H "Content-Type: application/json" \
+  -H "client_id: YOUR_CLIENT_ID" \
+  -H "client_secret: YOUR_CLIENT_SECRET" \
+  -d '{"input": "Write a Python decorator that rate-limits function calls to 10 per minute"}'</code></pre>
+
+                <div class="info-box success">
+                    <div class="info-box-title">Expected Result</div>
+                    <ul>
+                        <li>Response shows <code>"model":"claude-sonnet-4-6"</code> — routed to Bedrock</li>
+                        <li>Response contains Python code with decorator implementation</li>
+                    </ul>
+                </div>
+
+                <p><strong>Key observation:</strong> You didn't specify a model. The proxy classified "Write a Python decorator" as code-generation and routed to Claude.</p>
+
+                <h3>Test B: Documentation Prompt</h3>
+
+                <pre><code>curl -X POST "https://agent-network-ingress-gw-2l91ch.4o8hak.usa-e2.cloudhub.io/xometry-sdlc/responses" \
+  -H "Content-Type: application/json" \
+  -H "client_id: YOUR_CLIENT_ID" \
+  -H "client_secret: YOUR_CLIENT_SECRET" \
+  -d '{"input": "Summarize the key changes in sprint 47 for the stakeholder update"}'</code></pre>
+
+                <div class="info-box success">
+                    <div class="info-box-title">Expected Result</div>
+                    <ul>
+                        <li>Response shows <code>"model":"gemini-3-flash-preview"</code> — routed to Gemini</li>
+                        <li>Response contains a summary template</li>
+                    </ul>
+                </div>
+
+                <p><strong>Key observation:</strong> Same proxy, same credentials, no model specified — but this prompt routed to Gemini Flash because it's documentation work.</p>
+            </section>
+
+            <section id="step-8">
+                <h2>Step 8: Compare Costs</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Prompt Type</th>
+                            <th>Model Used</th>
+                            <th>Relative Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Code generation</td>
+                            <td>Claude Sonnet</td>
+                            <td>$$$</td>
+                        </tr>
+                        <tr>
+                            <td>Documentation/triage</td>
+                            <td>Gemini Flash</td>
+                            <td>$</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="info-box info">
+                    <div class="info-box-title">Demo Talking Point</div>
+                    <p>"If 40% of your prompts are summaries, triage, and documentation, and those were all going to Claude at $15/M tokens instead of Gemini at $0.075/M tokens, you're overspending by 200x on that traffic. Semantic routing catches it automatically."</p>
+                </div>
+            </section>
+
+            <section id="takeaways">
+                <h2>Key Takeaways</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Concept</th>
+                            <th>What You Proved</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Developer doesn't choose</strong></td>
+                            <td>No model parameter needed — proxy decides</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Embedding-based classification</strong></td>
+                            <td>Prompt similarity to trained utterances</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cost optimization built-in</strong></td>
+                            <td>Cheap tasks auto-route to cheap models</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Transparent to developers</strong></td>
+                            <td>They send prompts, proxy handles the rest</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="troubleshooting">
+                <h2>Troubleshooting</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Issue</th>
+                            <th>Fix</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>All requests going to fallback</td>
+                            <td>Lower the fallback threshold to 0.1 (Hugging Face embeddings produce lower confidence scores)</td>
+                        </tr>
+                        <tr>
+                            <td>"Semantic routing service unavailable"</td>
+                            <td>Embedding provider API key invalid or expired</td>
+                        </tr>
+                        <tr>
+                            <td>Misclassification</td>
+                            <td>Add more sample utterances to the correct topic</td>
+                        </tr>
+                        <tr>
+                            <td>CORS error in Playground</td>
+                            <td>Use curl commands instead — Playground requires CORS policy on proxy</td>
+                        </tr>
+                        <tr>
+                            <td>Fallback model error (404)</td>
+                            <td>Update fallback model from deprecated <code>gemini-2.5-flash-lite</code> to <code>Gemini 3 Flash Preview</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="complete">
+                <h2>Lab 3 Complete</h2>
+                <p>You've configured semantic routing:</p>
+                <ul>
+                    <li>Created a semantic routing service with embedding provider</li>
+                    <li>Trained two topics (code-generation, documentation-triage)</li>
+                    <li>Tested automatic classification</li>
+                    <li>Verified cost-appropriate routing</li>
+                </ul>
+
+                <div class="info-box info">
+                    <div class="info-box-title">What's Next</div>
+                    <p>In Lab 4, you'll create client applications for different teams, set token budgets, and see how to attribute spend to specific groups.</p>
+                </div>
+            </section>
+
+            <nav class="nav-footer">
+                <a href="lab2.html" class="nav-link">
+                    ← Previous: Lab 2 — Model-Based Routing
+                </a>
+                <a href="lab4.html" class="nav-link">
+                    Next: Lab 4 — Token Budgets →
+                </a>
+            </nav>
+        </main>
+
+        <aside class="toc">
+            <div class="toc-title">On This Page</div>
+            <ul class="toc-nav">
+                <li><a href="#overview">Overview</a></li>
+                <li><a href="#how-it-works">How It Works</a></li>
+                <li><a href="#step-1">Step 1: Create Service</a></li>
+                <li><a href="#step-2">Step 2: Configure</a></li>
+                <li><a href="#step-3">Step 3: Switch Routing</a></li>
+                <li><a href="#step-4">Step 4: Code Topic</a></li>
+                <li><a href="#step-5">Step 5: Docs Topic</a></li>
+                <li><a href="#step-6">Step 6: Fallback</a></li>
+                <li><a href="#step-7">Step 7: Test</a></li>
+                <li><a href="#step-8">Step 8: Compare Costs</a></li>
+                <li><a href="#takeaways">Key Takeaways</a></li>
+                <li><a href="#troubleshooting">Troubleshooting</a></li>
+                <li><a href="#complete">Lab Complete</a></li>
+            </ul>
+        </aside>
+    </div>
+
+    <script>
+        function toggleScreenshot(element) {
+            const content = element.nextElementSibling;
+            const isExpanded = content.classList.contains('expanded');
+            if (isExpanded) {
+                content.classList.remove('expanded');
+                element.textContent = '▶ ' + element.textContent.substring(2);
+            } else {
+                content.classList.add('expanded');
+                element.textContent = '▼ ' + element.textContent.substring(2);
+            }
+        }
+    </script>
+</body>
+</html>

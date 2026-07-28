@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab 2: Model-Based Routing | Module A: LLM Proxy & Cost Control</title>
+    <style>
+        :root {
+            --mulesoft-blue: #00a2df;
+            --mulesoft-dark: #1a1a2e;
+            --sidebar-bg: #f5f7fa;
+            --border-color: #e1e5eb;
+            --text-primary: #1a1a2e;
+            --text-secondary: #5c6370;
+            --code-bg: #f0f2f5;
+            --info-bg: #e7f5fd;
+            --info-border: #00a2df;
+            --warning-bg: #fff8e6;
+            --warning-border: #f5a623;
+            --success-bg: #e6f9ed;
+            --success-border: #00b341;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            color: var(--text-primary);
+            background: #fff;
+        }
+
+        .header {
+            background: var(--mulesoft-dark);
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-logo {
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: white;
+            text-decoration: none;
+        }
+
+        .header-nav {
+            display: flex;
+            gap: 1.5rem;
+        }
+
+        .header-nav a {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+
+        .header-nav a:hover {
+            color: white;
+        }
+
+        .header-nav a.active {
+            color: var(--mulesoft-blue);
+        }
+
+        .layout {
+            display: flex;
+            min-height: calc(100vh - 60px);
+        }
+
+        .sidebar {
+            width: 280px;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            padding: 1.5rem 0;
+            position: sticky;
+            top: 60px;
+            height: calc(100vh - 60px);
+            overflow-y: auto;
+        }
+
+        .sidebar-section {
+            padding: 0 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .sidebar-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+        }
+
+        .sidebar-nav {
+            list-style: none;
+        }
+
+        .sidebar-nav li {
+            margin-bottom: 0.25rem;
+        }
+
+        .sidebar-nav a {
+            display: block;
+            padding: 0.5rem 0.75rem;
+            color: var(--text-primary);
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .sidebar-nav a:hover {
+            background: rgba(0,0,0,0.05);
+        }
+
+        .sidebar-nav a.active {
+            background: var(--mulesoft-blue);
+            color: white;
+        }
+
+        .sidebar-nav .indent {
+            padding-left: 1.5rem;
+            font-size: 0.85rem;
+        }
+
+        .main {
+            flex: 1;
+            max-width: 900px;
+            padding: 2rem 3rem;
+        }
+
+        .breadcrumb {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+        }
+
+        .breadcrumb a {
+            color: var(--mulesoft-blue);
+            text-decoration: none;
+        }
+
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+        }
+
+        .meta {
+            display: flex;
+            gap: 2rem;
+            padding: 1rem 0;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 2rem;
+            font-size: 0.9rem;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .meta-label {
+            color: var(--text-secondary);
+        }
+
+        .meta-value {
+            font-weight: 500;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        h3 {
+            font-size: 1.2rem;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        p {
+            margin-bottom: 1rem;
+        }
+
+        ol, ul {
+            margin-bottom: 1rem;
+            padding-left: 1.5rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        .info-box {
+            padding: 1rem 1.25rem;
+            border-radius: 6px;
+            margin: 1.5rem 0;
+            border-left: 4px solid;
+        }
+
+        .info-box.info {
+            background: var(--info-bg);
+            border-color: var(--info-border);
+        }
+
+        .info-box.warning {
+            background: var(--warning-bg);
+            border-color: var(--warning-border);
+        }
+
+        .info-box.success {
+            background: var(--success-bg);
+            border-color: var(--success-border);
+        }
+
+        .info-box-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        code {
+            background: var(--code-bg);
+            padding: 0.15rem 0.4rem;
+            border-radius: 3px;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 0.875em;
+        }
+
+        pre {
+            background: var(--mulesoft-dark);
+            color: #e0e0e0;
+            padding: 1rem 1.25rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 1rem 0;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border: 1px solid var(--border-color);
+        }
+
+        th {
+            background: var(--sidebar-bg);
+            font-weight: 600;
+        }
+
+        .screenshot {
+            margin: 1.5rem 0;
+        }
+
+        .screenshot-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            color: var(--mulesoft-blue);
+            font-weight: 500;
+            padding: 0.5rem 0;
+        }
+
+        .screenshot-toggle:hover {
+            text-decoration: underline;
+        }
+
+        .screenshot-content {
+            display: none;
+            margin-top: 0.5rem;
+        }
+
+        .screenshot-content.expanded {
+            display: block;
+        }
+
+        .screenshot-content img {
+            max-width: 100%;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .nav-footer {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--mulesoft-blue);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .nav-link:hover {
+            text-decoration: underline;
+        }
+
+        .toc {
+            width: 220px;
+            padding: 1.5rem;
+            position: sticky;
+            top: 60px;
+            height: calc(100vh - 60px);
+            overflow-y: auto;
+        }
+
+        .toc-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+        }
+
+        .toc-nav {
+            list-style: none;
+        }
+
+        .toc-nav li {
+            margin-bottom: 0.5rem;
+        }
+
+        .toc-nav a {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+        }
+
+        .toc-nav a:hover {
+            color: var(--mulesoft-blue);
+        }
+
+        .diagram {
+            background: var(--code-bg);
+            padding: 1rem;
+            border-radius: 6px;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 0.85rem;
+            overflow-x: auto;
+            margin: 1rem 0;
+            white-space: pre;
+        }
+
+        @media (max-width: 1200px) {
+            .toc {
+                display: none;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .sidebar {
+                display: none;
+            }
+            .main {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <a href="index.html" class="header-logo">MuleSoft Workshop</a>
+        <nav class="header-nav">
+            <a href="index.html">Home</a>
+            <a href="lab1.html" class="active">Module A: LLM Proxy</a>
+            <a href="../module_b/lab1.html">Module B: Guided Determinism</a>
+        </nav>
+    </header>
+
+    <div class="layout">
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <div class="sidebar-title">Module A: LLM Proxy & Cost Control</div>
+                <ul class="sidebar-nav">
+                    <li><a href="lab1.html">Lab 1: Create LLM Proxy</a></li>
+                    <li><a href="lab2.html" class="active">Lab 2: Model-Based Routing</a></li>
+                    <li><a href="lab3.html">Lab 3: Semantic Routing</a></li>
+                    <li><a href="lab4.html">Lab 4: Token Budgets</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <main class="main">
+            <nav class="breadcrumb">
+                <a href="index.html">Workshop Home</a> /
+                <a href="index.html">Module A</a> /
+                Lab 2
+            </nav>
+
+            <h1>Lab 2: Model-Based Routing Strategy</h1>
+            <p class="subtitle">Verify the proxy routes to different providers based on model selection</p>
+
+            <div class="meta">
+                <div class="meta-item">
+                    <span class="meta-label">Duration:</span>
+                    <span class="meta-value">~15 minutes</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Pillar:</span>
+                    <span class="meta-value">Govern (extended)</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Prerequisite:</span>
+                    <span class="meta-value">Lab 1 complete</span>
+                </div>
+            </div>
+
+            <section id="overview">
+                <h2>Overview</h2>
+                <p>In Lab 1 you created an LLM Proxy with two routes. Now you'll verify that <strong>model-based routing</strong> works — the same URL routes to different providers based on the <code>model</code> parameter in the request.</p>
+
+                <p><strong>Business scenario:</strong> Your platform team wants developers to use one URL for all LLM calls. Expensive models (Claude Sonnet) for code generation, cheaper models (Gemini Flash) for documentation and triage. The proxy makes the routing decision automatically based on what model the developer requests.</p>
+            </section>
+
+            <section id="how-it-works">
+                <h2>How Model-Based Routing Works</h2>
+                <div class="diagram">Developer Request                    LLM Proxy                         Provider
+─────────────────                    ─────────                         ────────
+
+model = "claude-sonnet-4-6"   ──►   Routes to bedrock-claude     ──►  AWS Bedrock
+                                          │
+model = "gemini-3-flash"      ──►   Routes to gemini-flash       ──►  Google Gemini</div>
+                <p>The developer never changes the URL — just the model parameter. The proxy inspects the request and routes to the matching backend.</p>
+            </section>
+
+            <section id="step-1">
+                <h2>Step 1: Open the API Manager Playground</h2>
+                <ol>
+                    <li>Navigate to <strong>API Manager</strong> (via "Go to Anypoint Platform" if you're in the new Agent Fabric experience)</li>
+                    <li>In the left nav under <strong>AI Management</strong>, click <strong>LLM Proxies</strong></li>
+                    <li>Find <code>xometry-sdlc-proxy</code> in your list</li>
+                </ol>
+
+                <div class="screenshot">
+                    <div class="screenshot-toggle" onclick="toggleScreenshot(this)">
+                        ▶ Screenshot: API Manager LLM Proxies
+                    </div>
+                    <div class="screenshot-content">
+                        <img src="_images/01_api_manager_llm_proxies.png" alt="API Manager LLM Proxies">
+                    </div>
+                </div>
+
+                <ol start="4">
+                    <li>Click into it to see the proxy summary with cost management metrics</li>
+                </ol>
+
+                <div class="screenshot">
+                    <div class="screenshot-toggle" onclick="toggleScreenshot(this)">
+                        ▶ Screenshot: Proxy Summary with Metrics
+                    </div>
+                    <div class="screenshot-content">
+                        <img src="_images/02_proxy_summary_with_metrics.png" alt="Proxy summary with metrics">
+                    </div>
+                </div>
+
+                <ol start="5">
+                    <li>Click the <strong>Try out</strong> button (top right) to open the Playground</li>
+                </ol>
+            </section>
+
+            <section id="step-2">
+                <h2>Step 2: Configure Authentication</h2>
+                <p>In the Playground, add your client credentials as headers:</p>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Key</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>client_id</code></td>
+                            <td>(your Client ID from Lab 1)</td>
+                        </tr>
+                        <tr>
+                            <td><code>client_secret</code></td>
+                            <td>(your Client Secret from Lab 1)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="step-3">
+                <h2>Step 3: Test Route A — Bedrock Claude</h2>
+                <ol>
+                    <li>In the <strong>Model</strong> dropdown, select <strong>Claude Sonnet 4.6 (Bedrock Anthropic)</strong></li>
+                    <li>Enter a code-generation prompt:</li>
+                </ol>
+                <pre><code>Write a Python function that validates email addresses using regex.</code></pre>
+
+                <div class="screenshot">
+                    <div class="screenshot-toggle" onclick="toggleScreenshot(this)">
+                        ▶ Screenshot: Playground with Claude Selected
+                    </div>
+                    <div class="screenshot-content">
+                        <img src="_images/03_playground_claude_selected.png" alt="Playground with Claude selected">
+                    </div>
+                </div>
+
+                <ol start="3">
+                    <li>Click <strong>Run Test</strong></li>
+                </ol>
+
+                <div class="info-box success">
+                    <div class="info-box-title">Expected Result</div>
+                    <ul>
+                        <li>Status: "Request successfully matched"</li>
+                        <li>Outcome shows: Provider <code>bedrockanthropic</code>, Model <code>us.anthropic.claude-sonnet-4-6</code></li>
+                        <li>Response contains Python code</li>
+                    </ul>
+                </div>
+
+                <div class="screenshot">
+                    <div class="screenshot-toggle" onclick="toggleScreenshot(this)">
+                        ▶ Screenshot: Playground Claude Result
+                    </div>
+                    <div class="screenshot-content">
+                        <img src="_images/04_playground_claude_result.png" alt="Playground Claude result">
+                    </div>
+                </div>
+
+                <p><strong>Key observation:</strong> The request was routed to AWS Bedrock because we selected a Claude model.</p>
+            </section>
+
+            <section id="step-4">
+                <h2>Step 4: Test Route B — Gemini Flash</h2>
+                <ol>
+                    <li>In the <strong>Model</strong> dropdown, select <strong>Gemini 3 Flash Preview</strong></li>
+                    <li>Enter a documentation prompt:</li>
+                </ol>
+                <pre><code>Summarize the benefits of API-led connectivity in 3 bullet points.</code></pre>
+                <ol start="3">
+                    <li>Click <strong>Run Test</strong></li>
+                </ol>
+
+                <div class="info-box success">
+                    <div class="info-box-title">Expected Result</div>
+                    <ul>
+                        <li>Status: "Request successfully matched"</li>
+                        <li>Outcome shows: Provider <code>gemini</code>, Model <code>gemini-3-flash-preview</code></li>
+                        <li>Response contains a concise summary</li>
+                    </ul>
+                </div>
+
+                <p><strong>Key observation:</strong> Same URL, same client credentials — but the request was routed to Google Gemini because we selected a Gemini model.</p>
+            </section>
+
+            <section id="step-5">
+                <h2>Step 5: Compare the Results</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Test</th>
+                            <th>Model Selected</th>
+                            <th>Provider Hit</th>
+                            <th>Use Case</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Route A</td>
+                            <td>Claude Sonnet 4.6</td>
+                            <td>AWS Bedrock</td>
+                            <td>Code generation (expensive, powerful)</td>
+                        </tr>
+                        <tr>
+                            <td>Route B</td>
+                            <td>Gemini 3 Flash</td>
+                            <td>Google Gemini</td>
+                            <td>Documentation (cheaper, fast)</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="info-box info">
+                    <div class="info-box-title">Demo Talking Point</div>
+                    <p>"Developers hit one URL. The model parameter is the only thing that changes. The proxy handles which provider actually receives the call — no infrastructure changes, no code changes."</p>
+                </div>
+            </section>
+
+            <section id="takeaways">
+                <h2>Key Takeaways</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Concept</th>
+                            <th>What You Proved</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Single URL</strong></td>
+                            <td>Developers use one endpoint regardless of provider</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Model parameter = routing decision</strong></td>
+                            <td>Claude → Bedrock, Gemini → Google AI</td>
+                        </tr>
+                        <tr>
+                            <td><strong>No code changes</strong></td>
+                            <td>Switch providers by changing a dropdown/string</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Transparent to developers</strong></td>
+                            <td>They don't need to know which backend handles their request</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="complete">
+                <h2>Lab 2 Complete</h2>
+                <p>You've verified that model-based routing works:</p>
+                <ul>
+                    <li>Same URL, different model selection → different provider</li>
+                    <li>Playground makes it easy to test both routes</li>
+                    <li>Monitoring shows which route handled each request</li>
+                </ul>
+
+                <div class="info-box info">
+                    <div class="info-box-title">What's Next</div>
+                    <p>In Lab 3, the developer won't even choose the model — the proxy will classify the prompt and route automatically. "Write code" → expensive model. "Summarize this" → cheap model.</p>
+                </div>
+            </section>
+
+            <nav class="nav-footer">
+                <a href="lab1.html" class="nav-link">
+                    ← Previous: Lab 1 — Create LLM Proxy
+                </a>
+                <a href="lab3.html" class="nav-link">
+                    Next: Lab 3 — Semantic Routing →
+                </a>
+            </nav>
+        </main>
+
+        <aside class="toc">
+            <div class="toc-title">On This Page</div>
+            <ul class="toc-nav">
+                <li><a href="#overview">Overview</a></li>
+                <li><a href="#how-it-works">How It Works</a></li>
+                <li><a href="#step-1">Step 1: Open Playground</a></li>
+                <li><a href="#step-2">Step 2: Authentication</a></li>
+                <li><a href="#step-3">Step 3: Test Bedrock</a></li>
+                <li><a href="#step-4">Step 4: Test Gemini</a></li>
+                <li><a href="#step-5">Step 5: Compare</a></li>
+                <li><a href="#takeaways">Key Takeaways</a></li>
+                <li><a href="#complete">Lab Complete</a></li>
+            </ul>
+        </aside>
+    </div>
+
+    <script>
+        function toggleScreenshot(element) {
+            const content = element.nextElementSibling;
+            const isExpanded = content.classList.contains('expanded');
+
+            if (isExpanded) {
+                content.classList.remove('expanded');
+                element.textContent = '▶ ' + element.textContent.substring(2);
+            } else {
+                content.classList.add('expanded');
+                element.textContent = '▼ ' + element.textContent.substring(2);
+            }
+        }
+    </script>
+</body>
+</html>

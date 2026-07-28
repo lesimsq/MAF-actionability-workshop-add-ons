@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab 4: Token Budgets & Attribution | Module A: LLM Proxy & Cost Control</title>
+    <style>
+        :root {
+            --mulesoft-blue: #00a2df;
+            --mulesoft-dark: #1a1a2e;
+            --sidebar-bg: #f5f7fa;
+            --border-color: #e1e5eb;
+            --text-primary: #1a1a2e;
+            --text-secondary: #5c6370;
+            --code-bg: #f0f2f5;
+            --info-bg: #e7f5fd;
+            --info-border: #00a2df;
+            --warning-bg: #fff8e6;
+            --warning-border: #f5a623;
+            --success-bg: #e6f9ed;
+            --success-border: #00b341;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            color: var(--text-primary);
+            background: #fff;
+        }
+
+        .header {
+            background: var(--mulesoft-dark);
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-logo { font-weight: 700; font-size: 1.25rem; color: white; text-decoration: none; }
+        .header-nav { display: flex; gap: 1.5rem; }
+        .header-nav a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; }
+        .header-nav a:hover { color: white; }
+        .header-nav a.active { color: var(--mulesoft-blue); }
+
+        .layout { display: flex; min-height: calc(100vh - 60px); }
+
+        .sidebar {
+            width: 280px;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            padding: 1.5rem 0;
+            position: sticky;
+            top: 60px;
+            height: calc(100vh - 60px);
+            overflow-y: auto;
+        }
+
+        .sidebar-section { padding: 0 1.5rem; margin-bottom: 1.5rem; }
+        .sidebar-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 0.75rem; font-weight: 600; }
+        .sidebar-nav { list-style: none; }
+        .sidebar-nav li { margin-bottom: 0.25rem; }
+        .sidebar-nav a { display: block; padding: 0.5rem 0.75rem; color: var(--text-primary); text-decoration: none; border-radius: 4px; font-size: 0.9rem; }
+        .sidebar-nav a:hover { background: rgba(0,0,0,0.05); }
+        .sidebar-nav a.active { background: var(--mulesoft-blue); color: white; }
+
+        .main { flex: 1; max-width: 900px; padding: 2rem 3rem; }
+
+        .breadcrumb { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem; }
+        .breadcrumb a { color: var(--mulesoft-blue); text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+
+        h1 { font-size: 2rem; margin-bottom: 0.5rem; color: var(--text-primary); }
+        .subtitle { font-size: 1.1rem; color: var(--text-secondary); margin-bottom: 2rem; }
+
+        .meta { display: flex; gap: 2rem; padding: 1rem 0; border-bottom: 1px solid var(--border-color); margin-bottom: 2rem; font-size: 0.9rem; }
+        .meta-item { display: flex; align-items: center; gap: 0.5rem; }
+        .meta-label { color: var(--text-secondary); }
+        .meta-value { font-weight: 500; }
+
+        h2 { font-size: 1.5rem; margin-top: 2.5rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-color); }
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; margin-bottom: 0.75rem; }
+        p { margin-bottom: 1rem; }
+        ol, ul { margin-bottom: 1rem; padding-left: 1.5rem; }
+        li { margin-bottom: 0.5rem; }
+
+        .info-box { padding: 1rem 1.25rem; border-radius: 6px; margin: 1.5rem 0; border-left: 4px solid; }
+        .info-box.info { background: var(--info-bg); border-color: var(--info-border); }
+        .info-box.warning { background: var(--warning-bg); border-color: var(--warning-border); }
+        .info-box.success { background: var(--success-bg); border-color: var(--success-border); }
+        .info-box-title { font-weight: 600; margin-bottom: 0.5rem; }
+
+        code { background: var(--code-bg); padding: 0.15rem 0.4rem; border-radius: 3px; font-family: 'SF Mono', Monaco, 'Courier New', monospace; font-size: 0.875em; }
+        pre { background: var(--mulesoft-dark); color: #e0e0e0; padding: 1rem 1.25rem; border-radius: 6px; overflow-x: auto; margin: 1rem 0; }
+        pre code { background: none; padding: 0; color: inherit; }
+
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        th, td { padding: 0.75rem 1rem; text-align: left; border: 1px solid var(--border-color); }
+        th { background: var(--sidebar-bg); font-weight: 600; }
+
+        .screenshot { margin: 1.5rem 0; }
+        .screenshot-toggle { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; color: var(--mulesoft-blue); font-weight: 500; padding: 0.5rem 0; }
+        .screenshot-toggle:hover { text-decoration: underline; }
+        .screenshot-content { display: none; margin-top: 0.5rem; }
+        .screenshot-content.expanded { display: block; }
+        .screenshot-content img { max-width: 100%; border: 1px solid var(--border-color); border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+
+        .nav-footer { display: flex; justify-content: space-between; margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-color); }
+        .nav-link { display: flex; align-items: center; gap: 0.5rem; color: var(--mulesoft-blue); text-decoration: none; font-weight: 500; }
+        .nav-link:hover { text-decoration: underline; }
+
+        .toc { width: 220px; padding: 1.5rem; position: sticky; top: 60px; height: calc(100vh - 60px); overflow-y: auto; }
+        .toc-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 0.75rem; font-weight: 600; }
+        .toc-nav { list-style: none; }
+        .toc-nav li { margin-bottom: 0.5rem; }
+        .toc-nav a { font-size: 0.85rem; color: var(--text-secondary); text-decoration: none; }
+        .toc-nav a:hover { color: var(--mulesoft-blue); }
+
+        .diagram { background: var(--code-bg); padding: 1rem; border-radius: 6px; font-family: 'SF Mono', Monaco, 'Courier New', monospace; font-size: 0.85rem; overflow-x: auto; margin: 1rem 0; white-space: pre; }
+
+        @media (max-width: 1200px) { .toc { display: none; } }
+        @media (max-width: 900px) { .sidebar { display: none; } .main { padding: 1.5rem; } }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <a href="index.html" class="header-logo">MuleSoft Workshop</a>
+        <nav class="header-nav">
+            <a href="index.html">Home</a>
+            <a href="lab1.html" class="active">Module A: LLM Proxy</a>
+            <a href="../module_b/lab1.html">Module B: Guided Determinism</a>
+        </nav>
+    </header>
+
+    <div class="layout">
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <div class="sidebar-title">Module A: LLM Proxy & Cost Control</div>
+                <ul class="sidebar-nav">
+                    <li><a href="lab1.html">Lab 1: Create LLM Proxy</a></li>
+                    <li><a href="lab2.html">Lab 2: Model-Based Routing</a></li>
+                    <li><a href="lab3.html">Lab 3: Semantic Routing</a></li>
+                    <li><a href="lab4.html" class="active">Lab 4: Token Budgets</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <main class="main">
+            <nav class="breadcrumb">
+                <a href="index.html">Workshop Home</a> /
+                <a href="index.html">Module A</a> /
+                Lab 4
+            </nav>
+
+            <h1>Lab 4: Token Budgets & Attribution</h1>
+            <p class="subtitle">Add per-team budgets and see who's spending what</p>
+
+            <div class="meta">
+                <div class="meta-item">
+                    <span class="meta-label">Duration:</span>
+                    <span class="meta-value">~15 minutes</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Pillar:</span>
+                    <span class="meta-value">Govern (extended)</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Prerequisite:</span>
+                    <span class="meta-value">Lab 3 complete</span>
+                </div>
+            </div>
+
+            <section id="overview">
+                <h2>Overview</h2>
+                <p>You've built the routing layer. Now you'll add the <strong>FinOps layer</strong> — per-team budgets and attribution tracking. This is the lab that answers Jeff Arbor's question: "Who's spending what?"</p>
+
+                <p><strong>Business scenario:</strong> Your 500-person engineering org has multiple teams consuming LLM tokens. Without attribution, you see one giant bill. With client applications and budgets, you see exactly which team is driving costs — and you can cap runaway spend before it happens.</p>
+
+                <div class="info-box info">
+                    <div class="info-box-title">Why This Matters</div>
+                    <p>"We have seen token usage go from an annualized half a million dollars to $3 million in the span of about a month... I would love some better guard rails around and observability around tailoring and managing those things." — Jeff Arbor</p>
+                </div>
+            </section>
+
+            <section id="how-it-works">
+                <h2>How Attribution Works</h2>
+                <div class="diagram">Team A (Platform)
+  Client ID: abc123        ──►
+                               ┌─────────────┐
+Team B (Frontend)              │  LLM Proxy  │  ──►  LLM Provider
+  Client ID: xyz789        ──► │             │
+                               │  Tracks:    │
+Team C (QA)                    │  - tokens   │
+  Client ID: def456        ──► │  - by client│
+                               └─────────────┘</div>
+                <p>Each team gets unique credentials. The proxy tracks token consumption per client ID. You see the breakdown in Cost Management.</p>
+            </section>
+
+            <section id="step-1">
+                <h2>Step 1: Navigate to Exchange</h2>
+                <p>The first step is creating client applications that represent different teams.</p>
+                <ol>
+                    <li>In Anypoint Platform, click <strong>Exchange</strong> in the top navigation</li>
+                    <li>Search for <code>xometry-sdlc-proxy</code></li>
+                    <li>Click into the LLM Proxy asset</li>
+                </ol>
+
+                <div class="screenshot">
+                    <div class="screenshot-toggle" onclick="toggleScreenshot(this)">
+                        ▶ Screenshot: Exchange Proxy Asset
+                    </div>
+                    <div class="screenshot-content">
+                        <img src="_images/01_exchange_proxy_asset.png" alt="Exchange proxy asset">
+                    </div>
+                </div>
+
+                <div class="info-box info">
+                    <div class="info-box-title">Note</div>
+                    <p>When you deployed the LLM Proxy, it was automatically published to Exchange as an API asset. This is how you manage access to it.</p>
+                </div>
+            </section>
+
+            <section id="step-2">
+                <h2>Step 2: Create Client Application — Platform Team</h2>
+                <ol>
+                    <li>Click <strong>Request access</strong> (top right of the asset page)</li>
+                </ol>
+
+                <div class="screenshot">
+                    <div class="screenshot-toggle" onclick="toggleScreenshot(this)">
+                        ▶ Screenshot: Request Access Dialog
+                    </div>
+                    <div class="screenshot-content">
+                        <img src="_images/02_request_access_dialog.png" alt="Request access dialog">
+                    </div>
+                </div>
+
+                <ol start="2">
+                    <li>Click <strong>Create a new application</strong></li>
+                </ol>
+
+                <div class="screenshot">
+                    <div class="screenshot-toggle" onclick="toggleScreenshot(this)">
+                        ▶ Screenshot: Create New Application
+                    </div>
+                    <div class="screenshot-content">
+                        <img src="_images/03_create_new_application.png" alt="Create new application">
+                    </div>
+                </div>
+
+                <ol start="3">
+                    <li>Fill in:</li>
+                </ol>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Application Name</td>
+                            <td><code>xometry-platform-team</code></td>
+                        </tr>
+                        <tr>
+                            <td>Description</td>
+                            <td><code>Platform engineering — code gen, CI/CD, infrastructure</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="screenshot">
+                    <div class="screenshot-toggle" onclick="toggleScreenshot(this)">
+                        ▶ Screenshot: Platform Team Filled
+                    </div>
+                    <div class="screenshot-content">
+                        <img src="_images/04_platform_team_filled.png" alt="Platform team filled">
+                    </div>
+                </div>
+
+                <ol start="4">
+                    <li>Click <strong>Create</strong></li>
+                    <li><strong>Important:</strong> Copy the <strong>Client ID</strong> and <strong>Client Secret</strong> immediately — you won't see the secret again</li>
+                </ol>
+
+                <div class="screenshot">
+                    <div class="screenshot-toggle" onclick="toggleScreenshot(this)">
+                        ▶ Screenshot: Platform Team Credentials
+                    </div>
+                    <div class="screenshot-content">
+                        <img src="_images/05_platform_team_credentials.png" alt="Platform team credentials">
+                    </div>
+                </div>
+
+                <ol start="6">
+                    <li>Click <strong>Close</strong> to complete</li>
+                </ol>
+            </section>
+
+            <section id="step-3">
+                <h2>Step 3: Create Client Application — Frontend Team</h2>
+                <ol>
+                    <li>Click <strong>Request access</strong> again</li>
+                    <li>Click <strong>Create a new application</strong></li>
+                    <li>Fill in:</li>
+                </ol>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Application Name</td>
+                            <td><code>xometry-frontend-team</code></td>
+                        </tr>
+                        <tr>
+                            <td>Description</td>
+                            <td><code>Frontend team — UI components, docs, triage</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <ol start="4">
+                    <li>Click <strong>Create</strong></li>
+                    <li>Copy the credentials</li>
+                </ol>
+
+                <div class="screenshot">
+                    <div class="screenshot-toggle" onclick="toggleScreenshot(this)">
+                        ▶ Screenshot: Frontend Team Credentials
+                    </div>
+                    <div class="screenshot-content">
+                        <img src="_images/06_frontend_team_credentials.png" alt="Frontend team credentials">
+                    </div>
+                </div>
+
+                <ol start="6">
+                    <li>Click <strong>Close</strong> to complete</li>
+                </ol>
+            </section>
+
+            <section id="step-4">
+                <h2>Step 4: Test Attribution with Different Credentials</h2>
+                <p>Send requests as each team to generate attribution data.</p>
+
+                <h3>Request as Platform Team</h3>
+                <pre><code>curl -X POST "https://agent-network-ingress-gw-2l91ch.4o8hak.usa-e2.cloudhub.io/xometry-sdlc/responses" \
+  -H "Content-Type: application/json" \
+  -H "client_id: PLATFORM_TEAM_CLIENT_ID" \
+  -H "client_secret: PLATFORM_TEAM_CLIENT_SECRET" \
+  -d '{"input": "Write a Python function to parse webhook payloads"}'</code></pre>
+
+                <h3>Request as Frontend Team</h3>
+                <pre><code>curl -X POST "https://agent-network-ingress-gw-2l91ch.4o8hak.usa-e2.cloudhub.io/xometry-sdlc/responses" \
+  -H "Content-Type: application/json" \
+  -H "client_id: FRONTEND_TEAM_CLIENT_ID" \
+  -H "client_secret: FRONTEND_TEAM_CLIENT_SECRET" \
+  -d '{"input": "Summarize the key changes for the sprint review"}'</code></pre>
+
+                <div class="info-box info">
+                    <div class="info-box-title">No Terminal Access?</div>
+                    <p>Use <a href="https://hoppscotch.io" target="_blank">Hoppscotch</a> — paste the curl command and it converts/runs it for you.</p>
+                </div>
+            </section>
+
+            <section id="step-5">
+                <h2>Step 5: View the Cost Management Dashboard</h2>
+                <ol>
+                    <li>Navigate to <strong>Agent Fabric</strong> → <strong>LLM Proxies</strong> → <code>xometry-sdlc-proxy</code></li>
+                    <li>Click the <strong>Monitoring</strong> tab</li>
+                </ol>
+
+                <div class="screenshot">
+                    <div class="screenshot-toggle" onclick="toggleScreenshot(this)">
+                        ▶ Screenshot: Cost Management Dashboard
+                    </div>
+                    <div class="screenshot-content">
+                        <img src="_images/07_cost_management_dashboard.png" alt="Cost management dashboard">
+                    </div>
+                </div>
+
+                <p>You should see:</p>
+
+                <h3>Token Consumption by Client</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Client Application</th>
+                            <th>Tokens</th>
+                            <th>Requests</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>xometry-platform-team</td>
+                            <td>(varies)</td>
+                            <td>1+</td>
+                        </tr>
+                        <tr>
+                            <td>xometry-frontend-team</td>
+                            <td>(varies)</td>
+                            <td>1+</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Token Distribution by Model</h3>
+                <p>The pie chart shows the split between expensive (Claude) and cheap (Gemini) models.</p>
+
+                <div class="info-box info">
+                    <div class="info-box-title">Demo Talking Point</div>
+                    <p>"Instead of one $3M AWS bill, you now see Platform team used X tokens on Claude, Frontend used Y on Gemini. This is the visibility Jeff was asking for."</p>
+                </div>
+            </section>
+
+            <section id="step-6">
+                <h2>Step 6: Configure Token Budgets (Rate Limiting)</h2>
+                <p>Token budgets are configured via the <strong>LLM Token Based Rate Limit</strong> policy.</p>
+                <ol>
+                    <li>Go to <strong>API Manager</strong> → <strong>LLM Proxies</strong> → <code>xometry-sdlc-proxy</code> → <strong>Policies</strong></li>
+                    <li>Click <strong>+ Add Policy</strong></li>
+                    <li>Search for <strong>LLM Token Based Rate Limit</strong></li>
+                </ol>
+
+                <div class="screenshot">
+                    <div class="screenshot-toggle" onclick="toggleScreenshot(this)">
+                        ▶ Screenshot: Token Rate Limit Policy
+                    </div>
+                    <div class="screenshot-content">
+                        <img src="_images/08_token_rate_limit_policy_empty.png" alt="Token rate limit policy">
+                    </div>
+                </div>
+
+                <ol start="4">
+                    <li>Configure:</li>
+                </ol>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Maximum Tokens</td>
+                            <td><code>150000000</code> (150M per month)</td>
+                        </tr>
+                        <tr>
+                            <td>Time Period (ms)</td>
+                            <td><code>2592000000</code> (30 days in milliseconds)</td>
+                        </tr>
+                        <tr>
+                            <td>Key Selector</td>
+                            <td><code>#[attributes.headers['client_id']]</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="screenshot">
+                    <div class="screenshot-toggle" onclick="toggleScreenshot(this)">
+                        ▶ Screenshot: Token Rate Limit Filled
+                    </div>
+                    <div class="screenshot-content">
+                        <img src="_images/09_token_rate_limit_policy_filled.png" alt="Token rate limit policy filled">
+                    </div>
+                </div>
+
+                <ol start="5">
+                    <li>Click <strong>Apply</strong></li>
+                </ol>
+
+                <div class="info-box info">
+                    <div class="info-box-title">How It Works</div>
+                    <p>The Key Selector ensures each <code>client_id</code> gets its own 150M token budget. When a team exceeds their limit, they receive a 429 response until the time period resets.</p>
+                </div>
+
+                <div class="info-box info">
+                    <div class="info-box-title">Demo Talking Point</div>
+                    <p>"The Platform team has 150M tokens/month. If they burn through it by week 2, they're blocked until the period resets — or an admin manually increases their limit. This is the guardrail Jeff wanted."</p>
+                </div>
+            </section>
+
+            <section id="takeaways">
+                <h2>Key Takeaways</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Concept</th>
+                            <th>What You Proved</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Per-team credentials</strong></td>
+                            <td>Client applications = attributable identity</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Token budgets</strong></td>
+                            <td>Hard limits prevent runaway spend</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cost dashboard</strong></td>
+                            <td>See who's spending what, on which models</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Audit trail</strong></td>
+                            <td>Individual request-level tracking for compliance</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="finops-story">
+                <h2>The FinOps Story</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Before (Raw Bedrock)</th>
+                            <th>After (LLM Proxy)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>One AWS bill, $3M</td>
+                            <td>Per-team breakdown</td>
+                        </tr>
+                        <tr>
+                            <td>"Someone" is spending</td>
+                            <td>Platform team: $2.1M, Frontend: $900K</td>
+                        </tr>
+                        <tr>
+                            <td>No guardrails</td>
+                            <td>Budget caps with alerts</td>
+                        </tr>
+                        <tr>
+                            <td>No visibility into model usage</td>
+                            <td>See Claude vs Gemini split</td>
+                        </tr>
+                        <tr>
+                            <td>"Why did costs spike?"</td>
+                            <td>Audit trail to the request</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="complete">
+                <h2>Lab 4 Complete — Module A Complete!</h2>
+                <p>You've built a complete LLM cost control layer:</p>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Lab</th>
+                            <th>What You Built</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Lab 1</td>
+                            <td>LLM Proxy with 2 provider routes</td>
+                        </tr>
+                        <tr>
+                            <td>Lab 2</td>
+                            <td>Model-based routing (developer chooses)</td>
+                        </tr>
+                        <tr>
+                            <td>Lab 3</td>
+                            <td>Semantic routing (proxy chooses based on prompt)</td>
+                        </tr>
+                        <tr>
+                            <td>Lab 4</td>
+                            <td>Per-team attribution and token budgets</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="info-box success">
+                    <div class="info-box-title">For Xometry</div>
+                    <p>This is the control plane that transforms "$3M mystery bill" into "Platform team spent $X on code gen, Frontend spent $Y on docs, and here's the audit trail."</p>
+                </div>
+
+                <h3>What's Next</h3>
+                <p>After Module A, participants continue with:</p>
+                <ul>
+                    <li><strong>Module 3 (Orchestrate):</strong> Deploy an Agent Broker that uses this LLM Proxy</li>
+                    <li><strong>Module B (Guided Determinism):</strong> Configure the broker to make deterministic routing decisions</li>
+                </ul>
+                <p>The LLM Proxy you built is the foundation — brokers and agents call through it, getting automatic cost tracking and routing for every LLM request.</p>
+            </section>
+
+            <nav class="nav-footer">
+                <a href="lab3.html" class="nav-link">
+                    ← Previous: Lab 3 — Semantic Routing
+                </a>
+                <span></span>
+            </nav>
+        </main>
+
+        <aside class="toc">
+            <div class="toc-title">On This Page</div>
+            <ul class="toc-nav">
+                <li><a href="#overview">Overview</a></li>
+                <li><a href="#how-it-works">How It Works</a></li>
+                <li><a href="#step-1">Step 1: Exchange</a></li>
+                <li><a href="#step-2">Step 2: Platform Team</a></li>
+                <li><a href="#step-3">Step 3: Frontend Team</a></li>
+                <li><a href="#step-4">Step 4: Test</a></li>
+                <li><a href="#step-5">Step 5: Dashboard</a></li>
+                <li><a href="#step-6">Step 6: Budgets</a></li>
+                <li><a href="#takeaways">Key Takeaways</a></li>
+                <li><a href="#finops-story">FinOps Story</a></li>
+                <li><a href="#complete">Module Complete</a></li>
+            </ul>
+        </aside>
+    </div>
+
+    <script>
+        function toggleScreenshot(element) {
+            const content = element.nextElementSibling;
+            const isExpanded = content.classList.contains('expanded');
+            if (isExpanded) {
+                content.classList.remove('expanded');
+                element.textContent = '▶ ' + element.textContent.substring(2);
+            } else {
+                content.classList.add('expanded');
+                element.textContent = '▼ ' + element.textContent.substring(2);
+            }
+        }
+    </script>
+</body>
+</html>
